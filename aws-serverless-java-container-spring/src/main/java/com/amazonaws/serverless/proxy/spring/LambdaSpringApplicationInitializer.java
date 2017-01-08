@@ -12,10 +12,8 @@
  */
 package com.amazonaws.serverless.proxy.spring;
 
-import com.amazonaws.serverless.exceptions.InvalidResponseObjectException;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.context.support.ServletRequestHandledEvent;
@@ -40,7 +38,7 @@ import java.util.List;
  * `currentResponse` private property to the value of the new `HttpServletResponse` object. This is used to intercept
  * Spring notifications for the `ServletRequestHandledEvent` and call the flush method to release the latch.
  */
-public class LambdaSpringApplicationInitializer implements WebApplicationInitializer {
+public class LambdaSpringApplicationInitializer { // implements WebApplicationInitializer {
     private static final String DEFAULT_SERVLET_NAME = "aws-servless-java-container";
 
     // Configuration variables that can be passed in
@@ -54,6 +52,8 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
 
     // The current response is used to release the latch when Spring emits the request handled event
     private HttpServletResponse currentResponse;
+
+    private boolean initialized = false;
 
     /**
      * Creates a new instance of the WebApplicationInitializer
@@ -94,8 +94,41 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
         contextListeners.add(listener);
     }
 
-    public void dispatch(HttpServletRequest request, HttpServletResponse response)
+    public void dispatch(ServletContext servletContext, HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        if (!initialized) {
+            applicationContext.setServletContext(servletContext);
+
+            dispatcherConfig = new DefaultDispatcherConfig(servletContext);
+            applicationContext.setServletConfig(dispatcherConfig);
+
+            // Configure the listener for the request handled events. All we do here is release the latch
+            applicationContext.addApplicationListener(new ApplicationListener<ServletRequestHandledEvent>() {
+                @Override
+                public void onApplicationEvent(ServletRequestHandledEvent servletRequestHandledEvent) {
+                    try {
+                        currentResponse.flushBuffer();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        throw new RuntimeException("Could not flush response buffer", e);
+                    }
+                }
+            });
+
+            // Manage the lifecycle of the root application context
+            this.addListener(new ContextLoaderListener(applicationContext));
+
+            // Register and map the dispatcher servlet
+            dispatcherServlet = new DispatcherServlet(applicationContext);
+            dispatcherServlet.refresh();
+            dispatcherServlet.onApplicationEvent(new ContextRefreshedEvent(applicationContext));
+            dispatcherServlet.init(dispatcherConfig);
+
+            notifyStartListeners(servletContext);
+
+            initialized = true;
+        }
+
         currentResponse = response;
         dispatcherServlet.service(request, response);
     }
@@ -108,41 +141,12 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
         return applicationContext;
     }
 
-    @Override
-    public void onStartup(ServletContext servletContext) throws ServletException {
+    public void onStartup() throws ServletException {
         // Create the 'root' Spring application context
         applicationContext = new AnnotationConfigWebApplicationContext();
         for (Class config : configurationClasses) {
             applicationContext.register(config);
         }
-        applicationContext.setServletContext(servletContext);
-
-        dispatcherConfig = new DefaultDispatcherConfig(servletContext);
-        applicationContext.setServletConfig(dispatcherConfig);
-
-        // Configure the listener for the request handled events. All we do here is release the latch
-        applicationContext.addApplicationListener(new ApplicationListener<ServletRequestHandledEvent>() {
-            @Override
-            public void onApplicationEvent(ServletRequestHandledEvent servletRequestHandledEvent) {
-                try {
-                    currentResponse.flushBuffer();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    throw new RuntimeException("Could not flush response buffer", e);
-                }
-            }
-        });
-
-        // Manage the lifecycle of the root application context
-        this.addListener(new ContextLoaderListener(applicationContext));
-
-        // Register and map the dispatcher servlet
-        dispatcherServlet = new DispatcherServlet(applicationContext);
-        dispatcherServlet.refresh();
-        dispatcherServlet.onApplicationEvent(new ContextRefreshedEvent(applicationContext));
-        dispatcherServlet.init(dispatcherConfig);
-
-        notifyStartListeners(servletContext);
     }
 
     private void notifyStartListeners(ServletContext context) {

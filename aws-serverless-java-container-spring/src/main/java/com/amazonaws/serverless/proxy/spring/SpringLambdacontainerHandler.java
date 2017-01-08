@@ -21,6 +21,7 @@ import com.amazonaws.serverless.proxy.internal.servlet.AwsProxyHttpServletReques
 import com.amazonaws.serverless.proxy.internal.servlet.AwsProxyHttpServletRequestReader;
 import com.amazonaws.serverless.proxy.internal.servlet.AwsProxyHttpServletResponseWriter;
 import com.amazonaws.services.lambda.runtime.Context;
+import org.springframework.context.ApplicationContext;
 
 import javax.servlet.ServletContext;
 import java.util.concurrent.CountDownLatch;
@@ -94,10 +95,14 @@ public class SpringLambdaContainerHandler<RequestType, ResponseType> extends Lam
     protected void handleRequest(AwsProxyHttpServletRequest containerRequest, AwsHttpServletResponse containerResponse, Context lambdaContext) throws Exception {
         // wire up the application context on the first invocation
         if (!initialized) {
-            ServletContext context = containerRequest.getServletContext();
-            initializer.onStartup(context);
+            initializer.onStartup();
             initialized = true;
         }
-        initializer.dispatch(containerRequest, containerResponse);
+
+        initializer.dispatch(containerRequest.getServletContext(), containerRequest, containerResponse);
+    }
+
+    public ApplicationContext getApplicationContext() {
+        return initializer.getApplicationContext();
     }
 }
