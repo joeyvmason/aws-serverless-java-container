@@ -12,7 +12,6 @@
  */
 package com.amazonaws.serverless.proxy.spring;
 
-import com.amazonaws.serverless.exceptions.InvalidResponseObjectException;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.web.WebApplicationInitializer;
@@ -76,6 +75,25 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
      * }
      * }
      * </pre>
+     * @param applicationContext A custom AnnotationConfigWebApplicationContext to be used
+     */
+    public void setApplicationContext(AnnotationConfigWebApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
+    /**
+     * Adds a configuration class to the Spring startup process. This should be called at least once with an annotated
+     * class that contains the @Configuration annotations. The simplest possible class uses the @ComponentScan
+     * annocation to load all controllers.
+     *
+     * <pre>
+     * {@Code
+     * @Configuration
+     * @ComponentScan("com.amazonaws.serverless.proxy.spring.echoapp")
+     * public class EchoSpringAppConfig {
+     * }
+     * }
+     * </pre>
      * @param configuration A set of configuration classes
      */
     public void addConfigurationClasses(Class... configuration) {
@@ -111,7 +129,10 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
     @Override
     public void onStartup(ServletContext servletContext) throws ServletException {
         // Create the 'root' Spring application context
-        applicationContext = new AnnotationConfigWebApplicationContext();
+        if (applicationContext == null) {
+            applicationContext = new AnnotationConfigWebApplicationContext();
+        }
+
         for (Class config : configurationClasses) {
             applicationContext.register(config);
         }

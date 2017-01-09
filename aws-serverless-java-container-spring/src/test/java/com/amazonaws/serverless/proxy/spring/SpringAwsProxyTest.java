@@ -13,7 +13,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -26,7 +29,6 @@ public class SpringAwsProxyTest {
     private static final String CUSTOM_HEADER_KEY = "x-custom-header";
     private static final String CUSTOM_HEADER_VALUE = "my-custom-value";
     private static final String AUTHORIZER_PRINCIPAL_ID = "test-principal-" + UUID.randomUUID().toString();
-
 
     private static ObjectMapper objectMapper = new ObjectMapper();
     private static SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> handler = null;
@@ -41,6 +43,25 @@ public class SpringAwsProxyTest {
             e.printStackTrace();
             fail();
         }
+    }
+
+    @Ignore // This fails because the application context is shared between test calls and there can only be one root application context
+    @Test
+    public void headers_getHeaders_echo_custom_application_context() throws Exception {
+        AnnotationConfigWebApplicationContext applicationContext = new AnnotationConfigWebApplicationContext();
+        applicationContext.register(EchoSpringAppConfig.class);
+        SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> customHandler = SpringLambdaContainerHandler.getAwsProxyHandler(applicationContext);
+
+        AwsProxyRequest request = new AwsProxyRequestBuilder("/echo/headers", "GET")
+                .json()
+                .header(CUSTOM_HEADER_KEY, CUSTOM_HEADER_VALUE)
+                .build();
+
+        AwsProxyResponse output = customHandler.proxy(request, lambdaContext);
+        assertEquals(200, output.getStatusCode());
+        assertEquals("application/json", output.getHeaders().get("Content-Type").split(";")[0]);
+
+        validateMapResponseModel(output);
     }
 
     @Test
