@@ -15,6 +15,7 @@ package com.amazonaws.serverless.proxy.spring;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.web.WebApplicationInitializer;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.context.support.ServletRequestHandledEvent;
@@ -43,63 +44,24 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
     private static final String DEFAULT_SERVLET_NAME = "aws-servless-java-container";
 
     // Configuration variables that can be passed in
-    private List<Class> configurationClasses;
+    private ConfigurableWebApplicationContext applicationContext;
     private List<ServletContextListener> contextListeners;
 
     // Dynamically instantiated properties
-    private AnnotationConfigWebApplicationContext applicationContext;
     private ServletConfig dispatcherConfig;
     private DispatcherServlet dispatcherServlet;
 
     // The current response is used to release the latch when Spring emits the request handled event
     private HttpServletResponse currentResponse;
 
+    // todo: Add doc for applicationContext param
+
     /**
      * Creates a new instance of the WebApplicationInitializer
      */
-    public LambdaSpringApplicationInitializer() {
-        configurationClasses = new ArrayList<>();
-        contextListeners = new ArrayList<>();
-    }
-
-    /**
-     * Adds a configuration class to the Spring startup process. This should be called at least once with an annotated
-     * class that contains the @Configuration annotations. The simplest possible class uses the @ComponentScan
-     * annocation to load all controllers.
-     *
-     * <pre>
-     * {@Code
-     * @Configuration
-     * @ComponentScan("com.amazonaws.serverless.proxy.spring.echoapp")
-     * public class EchoSpringAppConfig {
-     * }
-     * }
-     * </pre>
-     * @param applicationContext A custom AnnotationConfigWebApplicationContext to be used
-     */
-    public void setApplicationContext(AnnotationConfigWebApplicationContext applicationContext) {
+    public LambdaSpringApplicationInitializer(ConfigurableWebApplicationContext applicationContext) {
+        this.contextListeners = new ArrayList<>();
         this.applicationContext = applicationContext;
-    }
-
-    /**
-     * Adds a configuration class to the Spring startup process. This should be called at least once with an annotated
-     * class that contains the @Configuration annotations. The simplest possible class uses the @ComponentScan
-     * annocation to load all controllers.
-     *
-     * <pre>
-     * {@Code
-     * @Configuration
-     * @ComponentScan("com.amazonaws.serverless.proxy.spring.echoapp")
-     * public class EchoSpringAppConfig {
-     * }
-     * }
-     * </pre>
-     * @param configuration A set of configuration classes
-     */
-    public void addConfigurationClasses(Class... configuration) {
-        for (Class config : configuration) {
-            configurationClasses.add(config);
-        }
     }
 
     /**
@@ -118,24 +80,8 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
         dispatcherServlet.service(request, response);
     }
 
-    /**
-     * Returns the application context initialized in the library
-     * @return
-     */
-    public AnnotationConfigWebApplicationContext getApplicationContext() {
-        return applicationContext;
-    }
-
     @Override
     public void onStartup(ServletContext servletContext) throws ServletException {
-        // Create the 'root' Spring application context
-        if (applicationContext == null) {
-            applicationContext = new AnnotationConfigWebApplicationContext();
-        }
-
-        for (Class config : configurationClasses) {
-            applicationContext.register(config);
-        }
         applicationContext.setServletContext(servletContext);
 
         dispatcherConfig = new DefaultDispatcherConfig(servletContext);
@@ -159,7 +105,7 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
 
         // Register and map the dispatcher servlet
         dispatcherServlet = new DispatcherServlet(applicationContext);
-        dispatcherServlet.refresh();
+//        dispatcherServlet.refresh();
         dispatcherServlet.onApplicationEvent(new ContextRefreshedEvent(applicationContext));
         dispatcherServlet.init(dispatcherConfig);
 
