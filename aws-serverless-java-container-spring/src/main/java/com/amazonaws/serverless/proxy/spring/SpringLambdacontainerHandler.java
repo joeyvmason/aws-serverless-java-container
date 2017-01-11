@@ -48,16 +48,13 @@ public class SpringLambdaContainerHandler<RequestType, ResponseType> extends Lam
      */
     public static SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> getAwsProxyHandler(ConfigurableWebApplicationContext applicationContext)
             throws ContainerInitializationException {
-        SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> handler =
-                new SpringLambdaContainerHandler<>(
-                        new AwsProxyHttpServletRequestReader(),
-                        new AwsProxyHttpServletResponseWriter(),
-                        new AwsProxySecurityContextWriter(),
-                        new AwsProxyExceptionHandler(),
-                        applicationContext
-                );
-
-        return handler;
+        return new SpringLambdaContainerHandler<>(
+                new AwsProxyHttpServletRequestReader(),
+                new AwsProxyHttpServletResponseWriter(),
+                new AwsProxySecurityContextWriter(),
+                new AwsProxyExceptionHandler(),
+                applicationContext
+        );
     }
 
     /**

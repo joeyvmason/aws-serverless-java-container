@@ -54,10 +54,9 @@ public class LambdaSpringApplicationInitializer implements WebApplicationInitial
     // The current response is used to release the latch when Spring emits the request handled event
     private HttpServletResponse currentResponse;
 
-    // todo: Add doc for applicationContext param
-
     /**
      * Creates a new instance of the WebApplicationInitializer
+     * @param applicationContext A custom ConfigurableWebApplicationContext to be used
      */
     public LambdaSpringApplicationInitializer(ConfigurableWebApplicationContext applicationContext) {
         this.contextListeners = new ArrayList<>();
